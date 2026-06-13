@@ -1,0 +1,115 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+enum AttendanceStatus {
+  HADIR
+  TERLAMBAT
+  IZIN
+  ALPA
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CorrectionType {
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum VerificationMethod {
+  PHOTO
+  WITNESS
+}
+
+enum CorrectionStatus {
+  DRAFT
+  PENDING_WITNESS
+  WITNESS_APPROVED
+  WITNESS_REJECTED
+  PENDING_ADMIN
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id               String                 @id @default(uuid())
+  nip              String                 @unique
+  email            String                 @unique
+  name             String
+  password         String
+  phone            String?
+  position         String?
+  status           String                 @default("ACTIVE") // ACTIVE, INACTIVE
+  role             Role                   @default(TEACHER)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  attendances      Attendance[]
+  leaves           Leave[]
+  corrections      AttendanceCorrection[] @relation("UserCorrections")
+  witnessed        AttendanceCorrection[] @relation("WitnessCorrections")
+}
+
+model Attendance {
+  id             String           @id @default(uuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime         // Tanggal kehadiran
+  checkInTime    DateTime?
+  checkOutTime   DateTime?
+  checkInLat     Float?
+  checkInLng     Float?
+  checkOutLat    Float?
+  checkOutLng    Float?
+  status         AttendanceStatus @default(HADIR)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([userId, date])
+}
+
+model Leave {
+  id           String      @id @default(uuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String      // misal: SAKIT, CUTI_TAHUNAN, KEPERLUAN_PRIBADI
+  reason       String
+  documentUrl  String?     // URL dokumen pendukung
+  status       LeaveStatus @default(PENDING)
+  reviewNotes  String?
+  reviewerId   String?
+  startDate    DateTime
+  endDate      DateTime
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model AttendanceCorrection {
+  id                 String             @id @default(uuid())
+  userId             String
+  user               User               @relation("UserCorrections", fields: [userId], references: [id], onDelete: Cascade)
+  date               DateTime           // Tanggal yang dikoreksi
+  correctionType     CorrectionType
+  reason             String
+  verificationMethod VerificationMethod
+  witnessId          String?
+  witness            User?              @relation("WitnessCorrections", fields: [witnessId], references: [id], onDelete: SetNull)
+  status             CorrectionStatus   @default(DRAFT)
+  photoUrl           String?            // Bukti foto jika metode PHOTO
+  reviewNotes        String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}

@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduAttend | Attendance Correction Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-background": "#131b2e",
+                        "on-primary-container": "#f5fff7",
+                        "error": "#ba1a1a",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed-variant": "#005137",
+                        "surface-container-highest": "#dae2fd",
+                        "background": "#faf8ff",
+                        "outline": "#6d7a72",
+                        "on-tertiary-fixed": "#410004",
+                        "on-secondary-container": "#00714d",
+                        "primary-fixed": "#85f8c4",
+                        "secondary-fixed-dim": "#4edea3",
+                        "surface-container-low": "#f2f3ff",
+                        "on-secondary": "#ffffff",
+                        "surface-dim": "#d2d9f4",
+                        "surface-container-lowest": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "surface-container-high": "#e2e7ff",
+                        "on-tertiary-fixed-variant": "#7f2928",
+                        "surface-container": "#eaedff",
+                        "tertiary-fixed": "#ffdad7",
+                        "inverse-on-surface": "#eef0ff",
+                        "primary-fixed-dim": "#68dba9",
+                        "tertiary-fixed-dim": "#ffb3ae",
+                        "on-error-container": "#93000a",
+                        "inverse-surface": "#283044",
+                        "secondary-fixed": "#6ffbbe",
+                        "on-surface": "#131b2e",
+                        "on-surface-variant": "#3d4a42",
+                        "primary-container": "#00855d",
+                        "outline-variant": "#bccac0",
+                        "on-primary-fixed": "#002114",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-container": "#ba5551",
+                        "primary": "#006948",
+                        "secondary-container": "#6cf8bb",
+                        "secondary": "#006c49",
+                        "inverse-primary": "#68dba9",
+                        "on-error": "#ffffff",
+                        "surface-tint": "#006c4a",
+                        "tertiary": "#9b3e3b",
+                        "surface-variant": "#dae2fd",
+                        "on-secondary-fixed-variant": "#005236",
+                        "on-tertiary-container": "#fffbff",
+                        "on-secondary-fixed": "#002113",
+                        "surface-bright": "#faf8ff",
+                        "surface": "#faf8ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sm": "8px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "container-max": "1280px",
+                        "base": "4px",
+                        "md": "16px",
+                        "gutter": "24px",
+                        "xl": "32px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-hidden">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-screen w-[280px] bg-surface border-r border-outline-variant flex flex-col p-md z-50">
+<div class="mb-xl px-md">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">EduAttend</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Admin Portal</p>
+</div>
+<nav class="flex-1 flex flex-col gap-xs">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-label-md" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container rounded-lg border-l-4 border-primary font-label-md" href="#">
+<span class="material-symbols-outlined">calendar_today</span>
+                Attendance
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-label-md" href="#">
+<span class="material-symbols-outlined">groups</span>
+                Faculty
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-label-md" href="#">
+<span class="material-symbols-outlined">event_note</span>
+                Schedules
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-label-md" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+                Reports
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-label-md" href="#">
+<span class="material-symbols-outlined">settings</span>
+                Settings
+            </a>
+</nav>
+<div class="mt-auto pt-md border-t border-outline-variant flex flex-col gap-xs">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-label-md" href="#">
+<span class="material-symbols-outlined">help</span>
+                Support
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg font-label-md" href="#">
+<span class="material-symbols-outlined">logout</span>
+                Logout
+            </a>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="ml-[280px] h-screen flex flex-col relative">
+<!-- TopNavBar Anchor -->
+<header class="sticky top-0 z-40 w-full bg-surface shadow-sm border-b border-outline-variant flex justify-between items-center h-16 px-lg">
+<div class="flex items-center gap-xl">
+<div class="relative group">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full focus:ring-2 focus:ring-primary text-body-sm w-64 transition-all" placeholder="Search requests..." type="text"/>
+</div>
+<div class="flex gap-lg">
+<a class="text-on-surface-variant font-medium pb-1 hover:text-primary transition-colors font-label-sm" href="#">Overview</a>
+<a class="text-primary font-bold border-b-2 border-primary pb-1 font-label-sm" href="#">History</a>
+<a class="text-on-surface-variant font-medium pb-1 hover:text-primary transition-colors font-label-sm" href="#">Analytics</a>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="h-8 w-px bg-outline-variant mx-2"></div>
+<div class="flex items-center gap-sm cursor-pointer group">
+<img alt="Administrator Profile" class="w-8 h-8 rounded-full object-cover ring-2 ring-transparent group-hover:ring-primary transition-all" data-alt="A professional headshot of a middle-aged male administrator in a corporate office setting. He is wearing a crisp white shirt and navy blue vest, projecting an air of organized authority and reliability. The lighting is bright and even, consistent with a modern light-mode UI aesthetic, emphasizing clarity and professionalism." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCT1lpsYNEyroSFvq_K7e2DiDjKtJ4Dk7O7hLK3xWWBqWwzebR25LAImGr9-FSNRDsmb0n-DHcIDMHRpj86FyLvnqG8j76qdZ-LrppqJSkQdZ3JX-bbSseQTz4j8meUhQKU0Y8U3Y5j_BH9I9HxznVggqguHjdIETSm6VIBlZFsFXP-CJ7PZvsx9B07vdsWyYejEYhZpDVmBSACN5OWdCEMZW-HIwCq1E_SUWV_BiUt-DYZAZZ1WpEANsbOOrktZ3oujRG1odTJIxzz"/>
+<span class="font-label-md text-on-surface hidden lg:block">Admin. Roberts</span>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<section class="flex-1 overflow-y-auto p-lg no-scrollbar">
+<div class="max-w-container-max mx-auto">
+<div class="flex justify-between items-end mb-xl">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-background">Attendance Corrections</h2>
+<p class="font-body-md text-on-surface-variant">Review and manage teacher attendance modification requests.</p>
+</div>
+<div class="flex gap-sm">
+<button class="flex items-center gap-sm px-md py-sm bg-surface border border-outline-variant rounded-lg font-label-md hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined">filter_list</span>
+                            Filter
+                        </button>
+<button class="flex items-center gap-sm px-md py-sm bg-primary text-on-primary rounded-lg font-label-md hover:shadow-md transition-all">
+<span class="material-symbols-outlined">download</span>
+                            Export Report
+                        </button>
+</div>
+</div>
+<!-- Data Table Section -->
+<div class="bg-surface rounded-xl border border-outline-variant overflow-hidden shadow-sm">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low">
+<tr>
+<th class="px-md py-sm font-label-sm text-outline uppercase tracking-wider">Teacher Name</th>
+<th class="px-md py-sm font-label-sm text-outline uppercase tracking-wider">Date</th>
+<th class="px-md py-sm font-label-sm text-outline uppercase tracking-wider">Type</th>
+<th class="px-md py-sm font-label-sm text-outline uppercase tracking-wider">Verification</th>
+<th class="px-md py-sm font-label-sm text-outline uppercase tracking-wider">Status</th>
+<th class="px-md py-sm font-label-sm text-outline uppercase tracking-wider text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors cursor-pointer group" onclick="openDrawer('Sarah Jenkins')">
+<td class="px-md py-md">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center font-bold text-on-secondary-container">SJ</div>
+<div>
+<div class="font-label-md text-on-surface">Sarah Jenkins</div>
+<div class="text-body-sm text-on-surface-variant">Dept. of Mathematics</div>
+</div>
+</div>
+</td>
+<td class="px-md py-md font-body-sm text-on-surface">Oct 24, 2023</td>
+<td class="px-md py-md">
+<span class="px-2 py-1 bg-surface-container-highest rounded text-body-sm">Check-in Error</span>
+</td>
+<td class="px-md py-md">
+<div class="flex items-center gap-xs text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span> Photo Evidence
+                                    </div>
+</td>
+<td class="px-md py-md">
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 uppercase tracking-tighter">Pending Admin</span>
+</td>
+<td class="px-md py-md text-right">
+<button class="text-primary font-label-sm hover:underline">Review</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors cursor-pointer" onclick="openDrawer('David Chen')">
+<td class="px-md py-md">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center font-bold text-on-primary-container">DC</div>
+<div>
+<div class="font-label-md text-on-surface">David Chen</div>
+<div class="text-body-sm text-on-surface-variant">Dept. of Sciences</div>
+</div>
+</div>
+</td>
+<td class="px-md py-md font-body-sm text-on-surface">Oct 23, 2023</td>
+<td class="px-md py-md">
+<span class="px-2 py-1 bg-surface-container-highest rounded text-body-sm">Clock-out Missed</span>
+</td>
+<td class="px-md py-md">
+<div class="flex items-center gap-xs text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">group</span> Witness Appr.
+                                    </div>
+</td>
+<td class="px-md py-md">
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 uppercase tracking-tighter">Witness Approved</span>
+</td>
+<td class="px-md py-md text-right">
+<button class="text-primary font-label-sm hover:underline">Review</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors cursor-pointer" onclick="openDrawer('Elena Rodriguez')">
+<td class="px-md py-md">
+<div class="flex items-center gap-md">
+<img class="w-10 h-10 rounded-full object-cover" data-alt="A portrait of a young Hispanic female teacher in a bright, modern classroom environment. She is smiling professionally, wearing a mustard yellow cardigan over a blue blouse. The aesthetic is clean and vibrant, fitting a professional educational dashboard with high clarity and a friendly atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_CV6FnqQ4k6nX0v_xatXJTaL9VS0hMeSzpXmYGyV9-THP8lgEIGRRt5c1jecvxmzMDmESSI-04SLJNbn3I_nomGII-DIsOmyugi21u1NLpZLZbH6FiS_n23nmi-ZOHeIU2aT_e_fthIJl1rshF-8xSPIlacQmf_KCkfeVuAoW-t9Rc483YQjEZapdR9Ll6-BaNT4w0Hxjpup5udnd54QO-ol8mF0M9Y0d-olcx9C0NDxOkMqNi8aV5OcwCVBdAGvUpwQDxC4hA0Rw"/>
+<div>
+<div class="font-label-md text-on-surface">Elena Rodriguez</div>
+<div class="text-body-sm text-on-surface-variant">Fine Arts</div>
+</div>
+</div>
+</td>
+<td class="px-md py-md font-body-sm text-on-surface">Oct 22, 2023</td>
+<td class="px-md py-md">
+<span class="px-2 py-1 bg-surface-container-highest rounded text-body-sm">Late Arrival</span>
+</td>
+<td class="px-md py-md">
+<div class="flex items-center gap-xs text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">verified</span> Admin Override
+                                    </div>
+</td>
+<td class="px-md py-md">
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 uppercase tracking-tighter">Witness Approved</span>
+</td>
+<td class="px-md py-md text-right">
+<button class="text-primary font-label-sm hover:underline">Review</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- Detail Drawer (Hidden by Default) -->
+<div class="fixed inset-y-0 right-0 w-[500px] bg-surface shadow-2xl z-[60] border-l border-outline-variant transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col" id="detailDrawer">
+<div class="p-lg border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-background">Correction Details</h3>
+<p class="text-body-sm text-on-surface-variant">Request ID: #AC-99201</p>
+</div>
+<button class="p-2 hover:bg-surface-container-high rounded-full transition-colors" onclick="closeDrawer()">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto p-lg space-y-xl no-scrollbar">
+<!-- User Profile Summary -->
+<div class="flex items-center gap-lg">
+<div class="w-16 h-16 rounded-xl bg-primary text-on-primary flex items-center justify-center font-display-lg text-[24px]" id="drawerAvatar">SJ</div>
+<div>
+<h4 class="font-headline-sm text-[20px] text-on-surface" id="drawerName">Sarah Jenkins</h4>
+<p class="text-body-md text-on-surface-variant">Senior Faculty, Mathematics</p>
+</div>
+</div>
+<!-- Info Cards Grid -->
+<div class="grid grid-cols-2 gap-md">
+<div class="p-md bg-surface-container-low rounded-lg border border-outline-variant">
+<p class="text-label-sm text-outline uppercase">Correction Date</p>
+<p class="font-label-md text-on-surface">October 24, 2023</p>
+</div>
+<div class="p-md bg-surface-container-low rounded-lg border border-outline-variant">
+<p class="text-label-sm text-outline uppercase">Reported Issue</p>
+<p class="font-label-md text-on-surface">Check-in Fail</p>
+</div>
+</div>
+<!-- Evidence Section -->
+<div>
+<label class="font-label-md text-on-surface block mb-sm">Teacher's Reason</label>
+<div class="p-md bg-surface border border-outline-variant rounded-lg italic text-body-md text-on-surface-variant">
+                        "The biometric scanner at the North Gate was unresponsive during my arrival at 07:50 AM. I had to proceed to the main office to report, which delayed my digital check-in until 08:15 AM."
+                    </div>
+</div>
+<div>
+<label class="font-label-md text-on-surface block mb-sm">Photo Evidence</label>
+<div class="relative group cursor-zoom-in">
+<img class="w-full h-48 object-cover rounded-xl border border-outline-variant" data-alt="A clear, close-up photograph of a digital biometric scanner screen showing a 'System Error' message with a glowing red indicator. The device is mounted on a clean, modern white wall in an educational building. The shot is well-lit, sharp, and provides clear visual evidence for an administrative review process." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcZuLySgMkKrYEUHX9ajUMk71K-YdOrn3YTOQ2Mb4kDUCvfkR7Rj0rSUHC77P0uxWmhrHGZoBym_woHy7oR1wizswzHOZaUgh_wSX_nFfVWHW2bvzsvAsUGnzxXabPqfbfjVs5RgfwpLXtr6BkbV0ilWDlCGdiOUKRvOWuR61POVfRMm3acnYhcdy0nN6zWb0RRtsHxRwR7hw1Vm4T3TkSJkqvz9IxItskSZ1d60K2Qh20V7LDXglIO5O5W50X8GMBM3c7wnDubLdW"/>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
+<span class="text-white font-label-md">Click to Enlarge</span>
+</div>
+</div>
+</div>
+<!-- Witness Trail -->
+<div>
+<label class="font-label-md text-on-surface block mb-sm">Verification Trail</label>
+<div class="space-y-sm">
+<div class="flex gap-md">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-emerald-500 mt-2"></div>
+<div class="w-0.5 h-full bg-outline-variant"></div>
+</div>
+<div class="pb-sm">
+<p class="font-label-md text-on-surface">Witness Verification</p>
+<p class="text-body-sm text-on-surface-variant">Approved by Prof. Alan Grant</p>
+<p class="text-xs text-outline">Oct 24, 09:10 AM</p>
+</div>
+</div>
+<div class="flex gap-md">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-amber-500 mt-2 ring-4 ring-amber-100"></div>
+</div>
+<div>
+<p class="font-label-md text-on-surface">Admin Review</p>
+<p class="text-body-sm text-on-surface-variant italic">Currently awaiting your action...</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Admin Action Inputs -->
+<div class="pt-lg border-t border-outline-variant space-y-md">
+<div>
+<label class="font-label-md text-on-surface block mb-sm" for="reviewNotes">Review Notes</label>
+<textarea class="w-full rounded-lg border-outline-variant focus:ring-primary focus:border-primary text-body-sm p-md" id="reviewNotes" placeholder="Enter notes for the teacher..." rows="3"></textarea>
+</div>
+</div>
+</div>
+<!-- Footer Actions -->
+<div class="p-lg bg-surface-container-low border-t border-outline-variant flex gap-md">
+<button class="flex-1 px-md py-md border border-error text-error rounded-lg font-label-md hover:bg-error-container transition-colors" onclick="closeDrawer()">
+                    Reject Request
+                </button>
+<button class="flex-1 px-md py-md bg-primary text-on-primary rounded-lg font-label-md hover:shadow-lg transition-all" onclick="closeDrawer()">
+                    Approve Correction
+                </button>
+</div>
+</div>
+<!-- Overlay -->
+<div class="fixed inset-0 bg-black/20 backdrop-blur-sm z-[55] hidden transition-opacity" id="overlay" onclick="closeDrawer()"></div>
+</main>
+<script>
+        function openDrawer(teacherName) {
+            const drawer = document.getElementById('detailDrawer');
+            const overlay = document.getElementById('overlay');
+            const drawerName = document.getElementById('drawerName');
+            const drawerAvatar = document.getElementById('drawerAvatar');
+            
+            drawerName.innerText = teacherName;
+            // Simplified avatar change
+            drawerAvatar.innerText = teacherName.split(' ').map(n => n[0]).join('');
+            
+            overlay.classList.remove('hidden');
+            setTimeout(() => {
+                drawer.classList.remove('translate-x-full');
+            }, 10);
+        }
+
+        function closeDrawer() {
+            const drawer = document.getElementById('detailDrawer');
+            const overlay = document.getElementById('overlay');
+            
+            drawer.classList.add('translate-x-full');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+            }, 300);
+        }
+    </script>
+</body></html>
