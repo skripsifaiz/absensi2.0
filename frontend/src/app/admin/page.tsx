@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { api } from "@/utils/api";
+import { useRouter } from "next/navigation";
+
 
 interface RequestItem {
   id: string;
@@ -13,66 +16,61 @@ interface RequestItem {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState<RequestItem[]>([
-    {
-      id: "req-1",
-      name: "Marcus Chen",
-      avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=120",
-      type: "Koreksi",
-      detail: "Koreksi: Absen Masuk 08:45 menjadi 08:00 (Saksi disetujui)",
-      time: "2 jam lalu",
-      status: "pending",
-    },
-    {
-      id: "req-2",
-      name: "Dr. Sarah Jenkins",
-      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120",
-      type: "Cuti",
-      detail: "Pengajuan Cuti: Sakit (2 hari) • Surat dokter terlampir",
-      time: "4 jam lalu",
-      status: "pending",
-    },
-    {
-      id: "req-3",
-      name: "Robert Peterson",
-      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=120",
-      type: "Cuti",
-      detail: "Pengajuan Cuti: Keperluan Pribadi (1 hari)",
-      time: "Kemarin",
-      status: "pending",
-    },
-  ]);
-
-  const [presentToday, setPresentToday] = useState(132);
-  const [lateCount, setLateCount] = useState(6);
-  const [leaveCount, setLeaveCount] = useState(8);
-  const [pendingCount, setPendingCount] = useState(14);
+  const [user, setUser] = useState<any>(null);
+  const [dashboardStats, setDashboardStats] = useState<any>({
+    todayStats: { present: 0, late: 0, alpa: 0, unreported: 0, totalTeachers: 0 },
+    pendingCorrections: 0
+  });
+  const [recentAttendances, setRecentAttendances] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<"table" | "visual">("table");
 
-  // Simulated initial mount loader
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  const loadData = async () => {
+    try {
+      const data = await api.get<any>("/attendance/admin/dashboard");
+      setDashboardStats(data.stats);
+      setRecentAttendances(data.recentAttendances);
+
+      const allCorrections = await api.get<any[]>("/correction/admin");
+      const pendingAdmin = allCorrections.filter(
+        (c) => c.status === "PENDING_ADMIN" || c.status === "WITNESS_APPROVED"
+      );
+      setRequests(pendingAdmin);
+    } catch (e) {
+      console.error("Failed to load admin dashboard data", e);
+    } finally {
       setLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleAction = (id: string, action: "approve" | "reject") => {
-    setRequests((prev) =>
-      prev.map((req) => (req.id === id ? { ...req, status: action === "approve" ? "approved" : "rejected" } : req))
-    );
-
-    setPendingCount((prev) => Math.max(0, prev - 1));
-    if (action === "approve") {
-      const target = requests.find((r) => r.id === id);
-      if (target?.type === "Cuti") {
-        setLeaveCount((prev) => prev + 1);
-      } else {
-        setPresentToday((prev) => prev + 1);
-      }
     }
   };
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      if (u.role !== "ADMIN") {
+        router.push("/teacher");
+      } else {
+        setUser(u);
+        loadData();
+      }
+    } else {
+      router.push("/");
+    }
+  }, []);
+
+  const handleAction = async (id: string, action: "approve" | "reject") => {
+    try {
+      await api.patch(`/correction/${id}/admin-approve`, {
+        action: action === "approve" ? "APPROVE" : "REJECT",
+      });
+      loadData();
+    } catch (err: any) {
+      alert(err.message || "Gagal memproses permohonan");
+    }
+  };
+
 
   if (loading) {
     return (
@@ -123,10 +121,12 @@ export default function AdminDashboard() {
             <span className="text-[10px] font-bold uppercase tracking-wider">Total Guru</span>
           </div>
           <div>
-            <div className="text-2xl font-bold text-on-surface leading-none">148</div>
+            <div className="text-2xl font-bold text-on-surface leading-none">
+              {dashboardStats.todayStats.totalTeachers}
+            </div>
             <div className="text-[9px] text-primary flex items-center gap-xs mt-1.5 font-bold">
               <span className="material-symbols-outlined text-xs">trending_up</span>
-              <span>+2 guru baru</span>
+              <span>Aktif</span>
             </div>
           </div>
         </div>
@@ -138,9 +138,13 @@ export default function AdminDashboard() {
             <span className="text-[10px] font-bold uppercase tracking-wider">Hadir Hari Ini</span>
           </div>
           <div>
-            <div className="text-2xl font-bold text-on-surface leading-none">{presentToday}</div>
+            <div className="text-2xl font-bold text-on-surface leading-none">
+              {dashboardStats.todayStats.present}
+            </div>
             <span className="px-1.5 py-[2px] bg-secondary-container text-on-secondary-container rounded text-[9px] inline-block font-extrabold mt-1.5 uppercase">
-              {((presentToday / 148) * 100).toFixed(1)}% Persentase
+              {dashboardStats.todayStats.totalTeachers > 0
+                ? ((dashboardStats.todayStats.present / dashboardStats.todayStats.totalTeachers) * 100).toFixed(1)
+                : 0}% Persentase
             </span>
           </div>
         </div>
@@ -152,8 +156,10 @@ export default function AdminDashboard() {
             <span className="text-[10px] font-bold uppercase tracking-wider">Terlambat</span>
           </div>
           <div>
-            <div className="text-2xl font-bold text-on-surface leading-none">{lateCount}</div>
-            <div className="text-[9px] text-on-surface-variant mt-1.5 font-bold">Rata-rata: 12 menit</div>
+            <div className="text-2xl font-bold text-on-surface leading-none">
+              {dashboardStats.todayStats.late}
+            </div>
+            <div className="text-[9px] text-on-surface-variant mt-1.5 font-bold">Rata-rata tepat waktu</div>
           </div>
         </div>
 
@@ -161,11 +167,13 @@ export default function AdminDashboard() {
         <div className="bg-white p-md rounded-xl border border-outline-variant shadow-xs flex flex-col justify-between">
           <div className="flex items-center gap-sm text-on-surface-variant mb-xs">
             <span className="material-symbols-outlined text-[18px] text-primary">assignment_turned_in</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider">Cuti / Izin</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Belum Melapor</span>
           </div>
           <div>
-            <div className="text-2xl font-bold text-on-surface leading-none">{leaveCount}</div>
-            <div className="text-[9px] text-on-surface-variant mt-1.5 font-bold">Terencana hari ini</div>
+            <div className="text-2xl font-bold text-on-surface leading-none">
+              {dashboardStats.todayStats.unreported}
+            </div>
+            <div className="text-[9px] text-on-surface-variant mt-1.5 font-bold">Belum absen masuk</div>
           </div>
         </div>
 
@@ -176,7 +184,9 @@ export default function AdminDashboard() {
             <span className="text-[10px] font-bold uppercase tracking-wider">Alpa / Absen</span>
           </div>
           <div>
-            <div className="text-2xl font-bold text-on-surface leading-none">2</div>
+            <div className="text-2xl font-bold text-on-surface leading-none">
+              {dashboardStats.todayStats.alpa}
+            </div>
             <div className="text-[9px] text-error mt-1.5 font-extrabold uppercase">Tanpa Keterangan</div>
           </div>
         </div>
@@ -188,11 +198,14 @@ export default function AdminDashboard() {
             <span className="text-[10px] font-bold uppercase tracking-wider">Persetujuan</span>
           </div>
           <div>
-            <div className="text-2xl font-bold text-on-primary leading-none">{pendingCount}</div>
+            <div className="text-2xl font-bold text-on-primary leading-none">
+              {dashboardStats.pendingCorrections}
+            </div>
             <div className="text-[9px] text-primary-fixed mt-1.5 font-bold">Perlu verifikasi</div>
           </div>
         </div>
       </div>
+
 
       {/* Bento Grid Content */}
       <div className="grid grid-cols-12 gap-lg">
@@ -259,33 +272,31 @@ export default function AdminDashboard() {
               </span>
             </div>
             <div className="flex flex-col gap-sm">
-              {requests.filter((r) => r.status === "pending").length === 0 ? (
+              {requests.length === 0 ? (
                 <div className="py-xl text-center flex flex-col items-center justify-center text-on-surface-variant gap-xs">
                   <span className="material-symbols-outlined text-[36px] text-primary/30">verified</span>
                   <p className="text-xs font-bold text-primary">Semua pengajuan selesai diperiksa!</p>
                 </div>
               ) : (
-                requests
-                  .filter((r) => r.status === "pending")
-                  .map((req) => (
+                requests.map((req) => (
                     <div
                       key={req.id}
                       className="flex items-center gap-md p-2 rounded-lg hover:bg-slate-50 transition-all cursor-pointer group"
                     >
-                      <div className="w-9 h-9 rounded-full border border-outline-variant overflow-hidden shrink-0">
-                        <img className="w-full h-full object-cover" src={req.avatar} alt={req.name} />
+                      <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center border border-outline-variant shrink-0">
+                        <span className="material-symbols-outlined text-primary text-base">person</span>
                       </div>
                       <div className="flex-1 overflow-hidden">
                         <p className="text-xs font-bold text-on-surface truncate leading-tight">
-                          {req.name}
+                          {req.user.name}
                         </p>
                         <p className="text-[10px] text-on-surface-variant truncate">
-                          {req.detail}
+                          Koreksi {req.correctionType === "CHECK_IN" ? "Check-In" : "Check-Out"} • "{req.reason}"
                         </p>
                       </div>
                       <div className="flex flex-col items-end">
                         <span className="text-[8px] text-on-surface-variant font-bold whitespace-nowrap">
-                          {req.time}
+                          {new Date(req.date).toLocaleDateString("id-ID")}
                         </span>
                         <div className="flex gap-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
@@ -306,6 +317,7 @@ export default function AdminDashboard() {
                   ))
               )}
             </div>
+
           </div>
           {requests.filter((r) => r.status !== "pending").length > 0 && (
             <div className="mt-md pt-sm border-t border-outline-variant text-[10px] text-on-surface-variant flex flex-col gap-0.5">
@@ -394,90 +406,47 @@ export default function AdminDashboard() {
                 <thead>
                   <tr className="border-b border-outline-variant">
                     <th className="pb-sm text-[10px] font-bold text-on-surface-variant uppercase">Nama Guru</th>
-                    <th className="pb-sm text-[10px] font-bold text-on-surface-variant uppercase">Departemen</th>
-                    <th className="pb-sm text-[10px] font-bold text-on-surface-variant uppercase text-center">Tingkat Kehadiran</th>
+                    <th className="pb-sm text-[10px] font-bold text-on-surface-variant uppercase">NIP</th>
+                    <th className="pb-sm text-[10px] font-bold text-on-surface-variant uppercase">Waktu Check-In</th>
                     <th className="pb-sm text-[10px] font-bold text-on-surface-variant uppercase text-right">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  <tr className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-2.5">
-                      <div className="flex items-center gap-sm">
-                        <div className="w-8 h-8 rounded-full border border-outline-variant overflow-hidden shrink-0">
-                          <img
-                            className="w-full h-full object-cover"
-                            src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=120"
-                            alt="David Miller"
-                          />
-                        </div>
-                        <span className="text-xs font-bold text-on-surface">David Miller</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-xs text-on-surface-variant font-medium">Sains & IPA</td>
-                    <td className="py-2.5">
-                      <div className="w-full max-w-[80px] mx-auto bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div className="bg-primary h-full w-[95%]"></div>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-right">
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase badge-success">
-                        Hadir
-                      </span>
-                    </td>
-                  </tr>
-                  <tr className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-2.5">
-                      <div className="flex items-center gap-sm">
-                        <div className="w-8 h-8 rounded-full border border-outline-variant overflow-hidden shrink-0">
-                          <img
-                            className="w-full h-full object-cover"
-                            src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=120"
-                            alt="Elena Rodriguez"
-                          />
-                        </div>
-                        <span className="text-xs font-bold text-on-surface">Elena Rodriguez</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-xs text-on-surface-variant font-medium">Matematika</td>
-                    <td className="py-2.5">
-                      <div className="w-full max-w-[80px] mx-auto bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div className="bg-amber-500 h-full w-[78%]"></div>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-right">
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase badge-warning">
-                        Telat
-                      </span>
-                    </td>
-                  </tr>
-                  <tr className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-2.5">
-                      <div className="flex items-center gap-sm">
-                        <div className="w-8 h-8 rounded-full border border-outline-variant overflow-hidden shrink-0">
-                          <img
-                            className="w-full h-full object-cover"
-                            src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=120"
-                            alt="James Wilson"
-                          />
-                        </div>
-                        <span className="text-xs font-bold text-on-surface">James Wilson</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-xs text-on-surface-variant font-medium">Sejarah & IPS</td>
-                    <td className="py-2.5">
-                      <div className="w-full max-w-[80px] mx-auto bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div className="bg-rose-500 h-full w-[0%]"></div>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-right">
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase badge-error">
-                        Alpa
-                      </span>
-                    </td>
-                  </tr>
+                  {recentAttendances.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-xs font-bold text-on-surface-variant">
+                        Belum ada guru yang melakukan absensi hari ini.
+                      </td>
+                    </tr>
+                  ) : (
+                    recentAttendances.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-2.5">
+                          <div className="flex items-center gap-sm">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-outline-variant shrink-0">
+                              <span className="material-symbols-outlined text-primary text-base">person</span>
+                            </div>
+                            <span className="text-xs font-bold text-on-surface">{item.user.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 text-xs text-on-surface-variant font-medium">{item.user.nip}</td>
+                        <td className="py-2.5 text-xs font-semibold">
+                          {item.checkInTime ? new Date(item.checkInTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "--:--"}
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                            item.status === "HADIR" ? "badge-success" : "badge-warning"
+                          }`}>
+                            {item.status === "HADIR" ? "Hadir" : "Telat"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
+
           ) : (
             <div className="py-2 flex flex-col gap-sm">
               {[

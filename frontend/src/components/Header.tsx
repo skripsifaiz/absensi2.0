@@ -8,16 +8,32 @@ interface HeaderProps {
   onMenuClick?: () => void;
 }
 
+import { useState, useEffect } from "react";
+
 export default function Header({ role, onMenuClick }: HeaderProps) {
   const pathname = usePathname();
 
-  // Determine user profile details based on role (Indonesian text)
-  const profileName = role === "admin" ? "Admin Jane" : "Dr. Sarah Jenkins";
-  const profileSub = role === "admin" ? "Administrator Utama" : "Guru Senior / Dosen";
+  const [profileName, setProfileName] = useState(role === "admin" ? "Admin Jane" : "Dr. Sarah Jenkins");
+  const [profileSub, setProfileSub] = useState(role === "admin" ? "Administrator Utama" : "Guru Senior / Dosen");
+
   const avatarUrl =
     role === "admin"
       ? "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=120"
       : "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=120";
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setProfileName(user.name);
+        setProfileSub(user.position || (user.role === "ADMIN" ? "Administrator Utama" : "Guru"));
+      } catch (e) {
+        console.error("Failed to parse user session", e);
+      }
+    }
+  }, []);
+
 
   return (
     <header className="sticky top-0 z-40 w-full h-16 px-md sm:px-lg bg-white/80 backdrop-blur-md flex justify-between items-center border-b border-outline-variant shadow-xs lg:ml-[280px] lg:w-[calc(100%-280px)]">

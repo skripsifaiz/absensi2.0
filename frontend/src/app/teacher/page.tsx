@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/utils/api";
+
 
 interface HistoryLog {
   date: string;
-  status: "Hadir" | "Terlambat" | "Izin" | "Alpa";
+  status: string;
   checkIn: string;
   checkOut: string;
   hours: string;
@@ -16,9 +18,15 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState("");
   const [checkedOutTime, setCheckedOutTime] = useState("--:--");
-  const [witnessPending, setWitnessPending] = useState(true);
+  const [witnessPending, setWitnessPending] = useState(false);
   const [hasResolvedMissed, setHasResolvedMissed] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const [user, setUser] = useState<any>(null);
+  const [stats, setStats] = useState<any>({ rate: "100%", present: 0, late: 0, izin: 0, alpa: 0, total: 0 });
+  const [todayAttendance, setTodayAttendance] = useState<any>(null);
+  const [witnessList, setWitnessList] = useState<any[]>([]);
+  const [history, setHistory] = useState<HistoryLog[]>([]);
 
   const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
     setToast({ message, type });
@@ -42,46 +50,78 @@ export default function TeacherDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Simulated mount loader
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  const fetchDashboardData = async (userId: string) => {
+    try {
+      const s = await api.get<any>(`/attendance/stats?userId=${userId}`);
+      setStats(s);
+
+      const today = await api.get<any>(`/attendance/today?userId=${userId}`);
+      setTodayAttendance(today);
+      if (today && today.checkOutTime) {
+        const outDate = new Date(today.checkOutTime);
+        setCheckedOutTime(outDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }));
+      } else {
+        setCheckedOutTime("--:--");
+      }
+
+      const rawHistory = await api.get<any[]>(`/attendance/history?userId=${userId}`);
+      const formatted = rawHistory.slice(0, 4).map(item => {
+        const d = new Date(item.date);
+        const dateStr = d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+        return {
+          date: dateStr,
+          status: item.status === "HADIR" ? "Hadir" : item.status === "TERLAMBAT" ? "Terlambat" : item.status === "IZIN" ? "Izin" : "Alpa",
+          checkIn: item.checkInTime ? new Date(item.checkInTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "--:--",
+          checkOut: item.checkOutTime ? new Date(item.checkOutTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "--:--",
+          hours: item.checkInTime && item.checkOutTime ? `${Math.round((new Date(item.checkOutTime).getTime() - new Date(item.checkInTime).getTime()) / (1000 * 60 * 60))}j` : "--",
+        };
+      });
+      setHistory(formatted);
+
+      const pending = await api.get<any[]>(`/correction/pending-witness?witnessId=${userId}`);
+      setWitnessList(pending);
+      setWitnessPending(pending.length > 0);
+    } catch (e) {
+      console.error("Failed to load dashboard data", e);
+    } finally {
       setLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
+    }
+  };
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      setUser(u);
+      fetchDashboardData(u.id);
+    } else {
+      router.push("/");
+    }
   }, []);
 
-  const [history, setHistory] = useState<HistoryLog[]>([
-    { date: "23 Okt 2023", status: "Hadir", checkIn: "08:05 AM", checkOut: "04:30 PM", hours: "8j 25m" },
-    { date: "22 Okt 2023", status: "Hadir", checkIn: "08:12 AM", checkOut: "05:00 PM", hours: "8j 48m" },
-    { date: "21 Okt 2023", status: "Terlambat", checkIn: "08:45 AM", checkOut: "04:30 PM", hours: "7j 45m" },
-    { date: "20 Okt 2023", status: "Hadir", checkIn: "08:00 AM", checkOut: "04:30 PM", hours: "8j 30m" },
-  ]);
-
-  const handleCheckOut = () => {
-    const now = new Date();
-    let hours = now.getHours();
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-    const ampm = hours >= 12 ? "PM" : "AM";
-    hours = hours % 12 || 12;
-    const formatted = `${String(hours).padStart(2, "0")}:${minutes} ${ampm}`;
-
-    setCheckedOutTime(formatted);
-    showToast(`Berhasil melakukan Check-Out pada pukul ${formatted}`);
-
-    const newLog: HistoryLog = {
-      date: "Hari Ini",
-      status: "Hadir",
-      checkIn: "08:15 AM",
-      checkOut: formatted,
-      hours: "7j 45m",
-    };
-    setHistory((prev) => [newLog, ...prev]);
+  const handleCheckOut = async () => {
+    if (!user) return;
+    try {
+      await api.post("/attendance/check-out", { userId: user.id });
+      showToast("Berhasil melakukan Check-Out. Selesai bertugas!");
+      fetchDashboardData(user.id);
+    } catch (err: any) {
+      showToast(err.message || "Gagal melakukan Check-Out", "error");
+    }
   };
 
-  const handleApproveWitness = () => {
-    setWitnessPending(false);
-    showToast("Anda menyetujui klaim persetujuan saksi dari Prof. Mark.");
+  const handleApproveWitness = async (correctionId: string) => {
+    try {
+      await api.patch(`/correction/${correctionId}/witness-approve`, { action: "APPROVE" });
+      showToast("Anda menyetujui klaim persetujuan saksi.");
+      if (user) {
+        fetchDashboardData(user.id);
+      }
+    } catch (err: any) {
+      showToast(err.message || "Gagal memproses persetujuan", "error");
+    }
   };
+
 
   if (loading) {
     return (
@@ -105,9 +145,10 @@ export default function TeacherDashboard() {
       {/* Welcome Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-md">
         <div>
-          <h2 className="text-xl font-bold text-on-surface tracking-tight">Selamat Pagi, Profesor</h2>
+          <h2 className="text-xl font-bold text-on-surface tracking-tight">Selamat Pagi, {user?.name || "Guru"}</h2>
           <p className="text-xs text-on-surface-variant font-medium">Hari ini adalah hari kuliah aktif. Semoga hari mengajar Anda menyenangkan.</p>
         </div>
+
         <div className="text-left md:text-right">
           <p className="font-headline-lg text-2xl font-extrabold text-primary">{currentTime || "08:42 AM"}</p>
           <p className="text-[10px] text-on-surface-variant flex items-center md:justify-end gap-xs font-bold">
@@ -147,12 +188,29 @@ export default function TeacherDashboard() {
                   </div>
                   <div>
                     <p className="text-[10px] text-on-surface-variant font-bold">Waktu Masuk (Check-In)</p>
-                    <p className="text-lg font-bold text-on-surface">08:15 AM</p>
+                    <p className="text-lg font-bold text-on-surface">
+                      {todayAttendance && todayAttendance.checkInTime 
+                        ? new Date(todayAttendance.checkInTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) 
+                        : "--:--"}
+                    </p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold text-primary bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Tepat Waktu
+                <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                  todayAttendance?.status === "TERLAMBAT" 
+                    ? "bg-amber-50 border-amber-100 text-amber-700" 
+                    : todayAttendance?.status === "HADIR"
+                    ? "bg-emerald-50 border-emerald-100 text-emerald-700"
+                    : "bg-slate-50 border-slate-100 text-slate-500"
+                }`}>
+                  {todayAttendance 
+                    ? todayAttendance.status === "TERLAMBAT" 
+                      ? "Terlambat" 
+                      : todayAttendance.status === "HADIR"
+                      ? "Tepat Waktu"
+                      : todayAttendance.status
+                    : "Belum Masuk"}
                 </span>
+
               </div>
 
               <div className="flex items-center justify-between p-md bg-slate-50/50 rounded-lg border border-outline-variant border-dashed">
@@ -250,50 +308,51 @@ export default function TeacherDashboard() {
             </div>
           </div>
           <div>
-            <p className="text-2xl font-bold text-on-surface">96%</p>
-            <p className="text-[10px] text-on-surface-variant font-bold mt-1">22 dari 23 Hari Kerja</p>
+            <p className="text-2xl font-bold text-on-surface">{stats.rate}</p>
+            <p className="text-[10px] text-on-surface-variant font-bold mt-1">Total {stats.total} Hari Kerja</p>
           </div>
         </div>
 
         <div className="bg-white p-lg rounded-xl border border-outline-variant shadow-xs flex flex-col gap-sm justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-on-surface-variant">Rata Check-in</span>
+            <span className="text-xs font-bold text-on-surface-variant">Total Hadir</span>
             <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center text-primary shrink-0">
               <span className="material-symbols-outlined text-base">schedule</span>
             </div>
           </div>
           <div>
-            <p className="text-2xl font-bold text-on-surface">08:08</p>
-            <p className="text-[10px] text-primary font-extrabold mt-1">Lebih Cepat (+12m rata-rata)</p>
+            <p className="text-2xl font-bold text-on-surface">{stats.present} Hari</p>
+            <p className="text-[10px] text-primary font-extrabold mt-1">Tepat Waktu</p>
           </div>
         </div>
 
         <div className="bg-white p-lg rounded-xl border border-outline-variant shadow-xs flex flex-col gap-sm justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-on-surface-variant">Sisa Jatah Cuti</span>
+            <span className="text-xs font-bold text-on-surface-variant">Total Terlambat</span>
             <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-on-surface shrink-0">
               <span className="material-symbols-outlined text-base">beach_access</span>
             </div>
           </div>
           <div>
-            <p className="text-2xl font-bold text-on-surface">14.5 Hari</p>
-            <p className="text-[10px] text-on-surface-variant font-bold mt-1">Jatah tahunan berjalan</p>
+            <p className="text-2xl font-bold text-on-surface">{stats.late} Kali</p>
+            <p className="text-[10px] text-amber-700 font-bold mt-1">Perlu Perbaikan</p>
           </div>
         </div>
 
         <div className="bg-white p-lg rounded-xl border border-outline-variant shadow-xs flex flex-col gap-sm justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-on-surface-variant">Kelebihan Jam Kerja</span>
+            <span className="text-xs font-bold text-on-surface-variant">Izin / Alpa</span>
             <div className="w-8 h-8 rounded-full bg-tertiary-fixed flex items-center justify-center text-tertiary shrink-0">
               <span className="material-symbols-outlined text-base">add_alarm</span>
             </div>
           </div>
           <div>
-            <p className="text-2xl font-bold text-on-surface">12 Jam</p>
-            <p className="text-[10px] text-on-surface-variant font-bold mt-1">Akumulasi lembur bulan ini</p>
+            <p className="text-2xl font-bold text-on-surface">{stats.izin} / {stats.alpa} Hari</p>
+            <p className="text-[10px] text-on-surface-variant font-bold mt-1">Izin / Mangkir</p>
           </div>
         </div>
       </div>
+
 
       {/* Row: Recent Logs & Pending Actions */}
       <div className="grid grid-cols-12 gap-lg">
@@ -355,33 +414,28 @@ export default function TeacherDashboard() {
               <h3 className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Tindakan Tertunda</h3>
             </div>
             <div className="p-md space-y-md">
-              {witnessPending && (
-                <div className="p-md rounded-lg bg-slate-50 border border-slate-200 flex gap-md items-start">
+              {witnessList.map((c) => (
+                <div key={c.id} className="p-md rounded-lg bg-slate-50 border border-slate-200 flex gap-md items-start mb-sm">
                   <div className="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center shrink-0 text-primary">
                     <span className="material-symbols-outlined">verified</span>
                   </div>
                   <div className="flex-1">
                     <p className="text-xs font-bold text-on-surface mb-xs">Permintaan Saksi</p>
                     <p className="text-[10px] text-on-surface-variant mb-md font-semibold">
-                      Profesor Mark membutuhkan Anda sebagai saksi check-in 08:30 AM kemarin.
+                      {c.user.name} memerlukan saksi untuk koreksi {c.correctionType === "CHECK_IN" ? "Check-In" : "Check-Out"} ({new Date(c.date).toLocaleDateString("id-ID")}).
                     </p>
                     <div className="flex gap-sm">
                       <button
-                        onClick={handleApproveWitness}
+                        onClick={() => handleApproveWitness(c.id)}
                         className="px-3 py-1 bg-primary text-on-primary rounded-lg text-[10px] font-bold hover:shadow"
                       >
                         Setujui
                       </button>
-                      <button
-                        onClick={() => alert("Membuka detail persetujuan saksi...")}
-                        className="px-3 py-1 bg-white border border-outline-variant rounded-lg text-[10px] font-bold"
-                      >
-                        Detail
-                      </button>
                     </div>
                   </div>
                 </div>
-              )}
+              ))}
+
 
               {!hasResolvedMissed && (
                 <div className="p-md rounded-lg bg-slate-50 border border-slate-200 flex gap-md items-start">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { api } from "@/utils/api";
 
 interface CorrectionRequest {
   id: string;
@@ -9,93 +10,105 @@ interface CorrectionRequest {
   date: string;
   type: string;
   method: string;
-  status: "Pending Admin" | "Witness Approved" | "Approved" | "Rejected";
+  status: 'DRAFT' | 'PENDING_WITNESS' | 'WITNESS_APPROVED' | 'WITNESS_REJECTED' | 'PENDING_ADMIN' | 'APPROVED' | 'REJECTED';
   reason: string;
   photoUrl: string;
   witnessName?: string;
   witnessTime?: string;
   avatarText: string;
+  reviewNotes?: string;
 }
 
 export default function AdminCorrections() {
   const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState<CorrectionRequest[]>([
-    {
-      id: "AC-99201",
-      name: "Sarah Jenkins",
-      dept: "Dept. Matematika",
-      date: "24 Okt 2023",
-      type: "Kesalahan Check-In",
-      method: "Bukti Foto",
-      status: "Pending Admin",
-      reason: "Pemindai biometrik di Gerbang Utara tidak merespons saat kedatangan saya pukul 07:50. Saya harus pergi ke kantor utama untuk melaporkan secara manual, yang menunda check-in digital saya hingga pukul 08:15.",
-      photoUrl: "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&q=80&w=600",
-      witnessName: "Prof. Alan Grant (Kepala Departemen)",
-      witnessTime: "24 Okt, 09:10 AM",
-      avatarText: "SJ",
-    },
-    {
-      id: "AC-99202",
-      name: "David Chen",
-      dept: "Dept. Sains & IPA",
-      date: "23 Okt 2023",
-      type: "Lupa Check-Out",
-      method: "Persetujuan Saksi",
-      status: "Witness Approved",
-      reason: "Saya terburu-buru menghadiri rapat evaluasi kurikulum darurat setelah jam sekolah selesai dan lupa melakukan check-out digital di sistem.",
-      photoUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=600",
-      witnessName: "Prof. Marcus Brody",
-      witnessTime: "23 Okt, 05:00 PM",
-      avatarText: "DC",
-    },
-    {
-      id: "AC-99203",
-      name: "Elena Rodriguez",
-      dept: "Seni Rupa & Desain",
-      date: "22 Okt 2023",
-      type: "Keterlambatan",
-      method: "Bukti Foto",
-      status: "Witness Approved",
-      reason: "Terjadi kemacetan parah karena kecelakaan di persimpangan jalan utama menuju kampus. Saya melampirkan foto laporan berita kemacetan jalan.",
-      photoUrl: "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&q=80&w=600",
-      witnessName: "Prof. Alan Grant",
-      witnessTime: "22 Okt, 10:00 AM",
-      avatarText: "ER",
-    },
-  ]);
-
+  const [requests, setRequests] = useState<CorrectionRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<CorrectionRequest | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [filter, setFilter] = useState<"All" | "Pending" | "Completed">("Pending");
 
-  // Simulated mount loader
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  const fetchRequests = async () => {
+    try {
+      const dbData = await api.get<any[]>("/correction/admin");
+      const mapped: CorrectionRequest[] = dbData.map((db) => {
+        const initials = db.user.name
+          ? db.user.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
+          : "G";
+        
+        const dateFormatted = new Date(db.date).toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+
+        const witnessTimeFormatted = db.updatedAt
+          ? new Date(db.updatedAt).toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+            }) + ", " + new Date(db.updatedAt).toLocaleTimeString("id-ID", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : undefined;
+
+        return {
+          id: db.id,
+          name: db.user.name,
+          dept: db.user.position || "Guru",
+          date: dateFormatted,
+          type: db.correctionType === "CHECK_IN" ? "Kesalahan Check-In" : "Lupa Check-Out",
+          method: db.verificationMethod === "WITNESS" ? "Persetujuan Saksi" : "Bukti Foto",
+          status: db.status,
+          reason: db.reason,
+          photoUrl: db.photoUrl || "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&q=80&w=600",
+          witnessName: db.witness ? db.witness.name : undefined,
+          witnessTime: db.witness ? witnessTimeFormatted : undefined,
+          avatarText: initials,
+          reviewNotes: db.reviewNotes || "",
+        };
+      });
+      setRequests(mapped);
+    } catch (error) {
+      console.error("Gagal mengambil data koreksi:", error);
+    } finally {
       setLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
   }, []);
 
   const openDrawer = (req: CorrectionRequest) => {
     setSelectedRequest(req);
-    setReviewNotes("");
+    setReviewNotes(req.reviewNotes || "");
   };
 
   const closeDrawer = () => {
     setSelectedRequest(null);
   };
 
-  const handleAction = (status: "Approved" | "Rejected") => {
+  const handleAction = async (actionType: "Approved" | "Rejected") => {
     if (!selectedRequest) return;
-    setRequests((prev) =>
-      prev.map((r) => (r.id === selectedRequest.id ? { ...r, status } : r))
-    );
-    closeDrawer();
+    const action = actionType === "Approved" ? "APPROVE" : "REJECT";
+    try {
+      await api.patch(`/correction/${selectedRequest.id}/admin-approve`, {
+        action,
+        notes: reviewNotes,
+      });
+      await fetchRequests();
+      closeDrawer();
+    } catch (err: any) {
+      alert(err.message || "Gagal memproses persetujuan admin");
+    }
   };
 
   const filteredRequests = requests.filter((r) => {
-    if (filter === "Pending") return r.status === "Pending Admin" || r.status === "Witness Approved";
-    if (filter === "Completed") return r.status === "Approved" || r.status === "Rejected";
+    if (filter === "Pending") {
+      return r.status === "PENDING_ADMIN" || r.status === "WITNESS_APPROVED" || r.status === "PENDING_WITNESS";
+    }
+    if (filter === "Completed") {
+      return r.status === "APPROVED" || r.status === "REJECTED" || r.status === "WITNESS_REJECTED";
+    }
     return true;
   });
 
@@ -194,21 +207,29 @@ export default function AdminCorrections() {
                     <td className="px-lg py-md">
                       <span
                         className={`px-3 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                          req.status === "Pending Admin"
+                          req.status === "PENDING_ADMIN"
                             ? "badge-warning"
-                            : req.status === "Witness Approved"
+                            : req.status === "WITNESS_APPROVED"
                             ? "badge-info"
-                            : req.status === "Approved"
+                            : req.status === "APPROVED"
                             ? "badge-success"
+                            : req.status === "PENDING_WITNESS"
+                            ? "bg-slate-100 text-slate-700 border border-slate-200"
+                            : req.status === "WITNESS_REJECTED"
+                            ? "bg-rose-50 text-rose-700 border border-rose-100"
                             : "badge-error"
                         }`}
                       >
-                        {req.status === "Pending Admin"
+                        {req.status === "PENDING_ADMIN"
                           ? "Menunggu Admin"
-                          : req.status === "Witness Approved"
+                          : req.status === "WITNESS_APPROVED"
                           ? "Disetujui Saksi"
-                          : req.status === "Approved"
+                          : req.status === "APPROVED"
                           ? "Disetujui"
+                          : req.status === "PENDING_WITNESS"
+                          ? "Menunggu Saksi"
+                          : req.status === "WITNESS_REJECTED"
+                          ? "Ditolak Saksi"
                           : "Ditolak"}
                       </span>
                     </td>
@@ -284,33 +305,37 @@ export default function AdminCorrections() {
                   {/* Step 2 */}
                   <div className="flex flex-col items-center z-10">
                     <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                      selectedRequest.status !== "Pending Admin" ? "bg-primary text-white" : "bg-blue-600 text-white"
+                      (selectedRequest.status !== "PENDING_WITNESS" && selectedRequest.status !== "WITNESS_REJECTED") ? "bg-primary text-white" : selectedRequest.status === "PENDING_WITNESS" ? "bg-blue-600 text-white animate-pulse" : "bg-error text-white"
                     }`}>
-                      {selectedRequest.status !== "Pending Admin" ? "✓" : "2"}
+                      {(selectedRequest.status !== "PENDING_WITNESS" && selectedRequest.status !== "WITNESS_REJECTED") ? "✓" : selectedRequest.status === "WITNESS_REJECTED" ? "✕" : "2"}
                     </div>
                     <span className="text-[9px] font-bold text-on-surface mt-1">Saksi</span>
                   </div>
                   {/* Step 3 */}
                   <div className="flex flex-col items-center z-10">
                     <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                      selectedRequest.status === "Approved" 
+                      selectedRequest.status === "APPROVED" 
                         ? "bg-primary text-white" 
-                        : selectedRequest.status === "Rejected"
+                        : (selectedRequest.status === "REJECTED" || selectedRequest.status === "WITNESS_REJECTED")
                         ? "bg-error text-white"
-                        : "bg-amber-500 text-white animate-pulse"
+                        : (selectedRequest.status === "PENDING_ADMIN" || selectedRequest.status === "WITNESS_APPROVED")
+                        ? "bg-amber-500 text-white animate-pulse"
+                        : "bg-slate-300 text-white"
                     }`}>
-                      {selectedRequest.status === "Approved" ? "✓" : selectedRequest.status === "Rejected" ? "✕" : "3"}
+                      {selectedRequest.status === "APPROVED" ? "✓" : (selectedRequest.status === "REJECTED" || selectedRequest.status === "WITNESS_REJECTED") ? "✕" : "3"}
                     </div>
                     <span className="text-[9px] font-bold text-on-surface mt-1">Admin</span>
                   </div>
                 </div>
                 <p className="text-[10px] text-on-surface-variant font-medium text-center italic mt-2">
                   Status Saat Ini:{" "}
-                  {selectedRequest.status === "Pending Admin"
+                  {selectedRequest.status === "PENDING_WITNESS"
+                    ? "Menunggu Persetujuan Saksi"
+                    : selectedRequest.status === "WITNESS_REJECTED"
+                    ? "Ditolak oleh Saksi"
+                    : (selectedRequest.status === "PENDING_ADMIN" || selectedRequest.status === "WITNESS_APPROVED")
                     ? "Menunggu Keputusan Anda"
-                    : selectedRequest.status === "Witness Approved"
-                    ? "Disetujui Saksi, Menunggu Keputusan Anda"
-                    : selectedRequest.status === "Approved"
+                    : selectedRequest.status === "APPROVED"
                     ? "Selesai Disetujui"
                     : "Selesai Ditolak"}
                 </p>
@@ -383,19 +408,42 @@ export default function AdminCorrections() {
             </div>
 
             {/* Drawer Footer Actions */}
-            <div className="p-lg bg-slate-50 border-t border-outline-variant flex gap-md">
-              <button
-                onClick={() => handleAction("Rejected")}
-                className="flex-1 py-2 border border-error text-error hover:bg-rose-50 rounded-lg text-xs font-bold transition-all"
-              >
-                Tolak Pengajuan
-              </button>
-              <button
-                onClick={() => handleAction("Approved")}
-                className="flex-1 py-2 bg-primary text-on-primary hover:bg-primary-container rounded-lg text-xs font-bold hover:shadow transition-all"
-              >
-                Setujui Koreksi
-              </button>
+            <div className="p-lg bg-slate-50 border-t border-outline-variant">
+              {(selectedRequest.status === "PENDING_ADMIN" || selectedRequest.status === "WITNESS_APPROVED") ? (
+                <div className="flex gap-md">
+                  <button
+                    onClick={() => handleAction("Rejected")}
+                    className="flex-1 py-2 border border-error text-error hover:bg-rose-50 rounded-lg text-xs font-bold transition-all"
+                  >
+                    Tolak Pengajuan
+                  </button>
+                  <button
+                    onClick={() => handleAction("Approved")}
+                    className="flex-1 py-2 bg-primary text-on-primary hover:bg-primary-container rounded-lg text-xs font-bold hover:shadow transition-all"
+                  >
+                    Setujui Koreksi
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <p className="text-xs font-bold text-on-surface-variant">
+                    Status: {
+                      selectedRequest.status === "APPROVED" 
+                        ? "Telah Disetujui Admin" 
+                        : selectedRequest.status === "REJECTED" 
+                        ? "Telah Ditolak Admin" 
+                        : selectedRequest.status === "PENDING_WITNESS" 
+                        ? "Menunggu Persetujuan Saksi" 
+                        : "Telah Ditolak Saksi"
+                    }
+                  </p>
+                  {selectedRequest.reviewNotes && (
+                    <p className="text-[10px] text-on-surface-variant mt-1 italic">
+                      Catatan: "{selectedRequest.reviewNotes}"
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}

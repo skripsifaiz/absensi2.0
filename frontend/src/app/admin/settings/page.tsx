@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { api } from "@/utils/api";
+import { useRouter } from "next/navigation";
+
 
 export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
@@ -37,12 +40,41 @@ export default function AdminSettings() {
 
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
-  // Simulated mount loader
+  // Teacher registration state
+  const [teacherNip, setTeacherNip] = useState("");
+  const [teacherName, setTeacherName] = useState("");
+  const [teacherEmail, setTeacherEmail] = useState("");
+  const [teacherPosition, setTeacherPosition] = useState("");
+  const [teacherPassword, setTeacherPassword] = useState("");
+  const [registering, setRegistering] = useState(false);
+
+  // Fetch configs from backend
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
+    let active = true;
+    async function loadSettings() {
+      try {
+        const res = await api.get<any>("/settings");
+        if (res && active) {
+          setLat(String(res.latitude));
+          setLng(String(res.longitude));
+          setRadius(res.radius);
+          setGeofencingActive(res.geofenceActive);
+          setLateThreshold(res.lateThreshold);
+          setStartTime(res.startTime);
+          setEndTime(res.endTime);
+          setSchoolName(res.schoolName || "Sekolah Menengah Oakwood");
+          setContactEmail(res.contactEmail || "admin@oakwood.sch.id");
+        }
+      } catch (err: any) {
+        console.error("Gagal memuat konfigurasi sekolah:", err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    loadSettings();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const triggerSaveStatus = (message: string) => {
@@ -63,23 +95,78 @@ export default function AdminSettings() {
     }
   };
 
-  const saveGPS = (e: React.FormEvent) => {
+  const saveGPS = async (e: React.FormEvent) => {
     e.preventDefault();
     if (radiusError) {
       showToast("Harap perbaiki kesalahan input sebelum menyimpan!", "error");
       return;
     }
-    triggerSaveStatus("Pengaturan GPS & Geofence berhasil disimpan!");
+    try {
+      await api.put("/settings", {
+        latitude: parseFloat(lat),
+        longitude: parseFloat(lng),
+        radius: radius,
+      });
+      triggerSaveStatus("Pengaturan GPS & Geofence berhasil disimpan!");
+    } catch (err: any) {
+      showToast(err.message || "Gagal menyimpan GPS", "error");
+    }
   };
 
-  const saveRules = (e: React.FormEvent) => {
+  const saveRules = async (e: React.FormEvent) => {
     e.preventDefault();
-    triggerSaveStatus("Aturan kehadiran berhasil diperbarui!");
+    try {
+      await api.put("/settings", {
+        geofenceActive: geofencingActive,
+        lateThreshold: lateThreshold,
+        startTime: startTime,
+        endTime: endTime,
+      });
+      triggerSaveStatus("Aturan kehadiran berhasil diperbarui!");
+    } catch (err: any) {
+      showToast(err.message || "Gagal memperbarui aturan", "error");
+    }
   };
 
-  const saveGeneralSettings = (e: React.FormEvent) => {
+  const saveGeneralSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    triggerSaveStatus("Profil instansi berhasil diperbarui!");
+    try {
+      await api.put("/settings", {
+        schoolName: schoolName,
+        contactEmail: contactEmail,
+      });
+      triggerSaveStatus("Profil instansi berhasil diperbarui!");
+    } catch (err: any) {
+      showToast(err.message || "Gagal memperbarui info instansi", "error");
+    }
+  };
+
+  const handleRegisterTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (teacherPassword.length < 6) {
+      showToast("Kata sandi minimal 6 karakter!", "error");
+      return;
+    }
+    setRegistering(true);
+    try {
+      await api.post("/auth/register-teacher", {
+        nip: teacherNip,
+        name: teacherName,
+        email: teacherEmail,
+        position: teacherPosition,
+        password: teacherPassword,
+      });
+      showToast("Guru berhasil didaftarkan!", "success");
+      setTeacherNip("");
+      setTeacherName("");
+      setTeacherEmail("");
+      setTeacherPosition("");
+      setTeacherPassword("");
+    } catch (err: any) {
+      showToast(err.message || "Gagal mendaftarkan guru", "error");
+    } finally {
+      setRegistering(false);
+    }
   };
 
   if (loading) {
@@ -392,7 +479,79 @@ export default function AdminSettings() {
             </div>
           </div>
 
+          {/* Register Teacher Form Card */}
+          <form onSubmit={handleRegisterTeacher} className="bg-white rounded-xl border border-outline-variant shadow-xs overflow-hidden">
+            <div className="p-md border-b border-outline-variant bg-slate-50 flex items-center gap-sm">
+              <span className="material-symbols-outlined text-primary">person_add</span>
+              <h3 className="text-xs font-bold text-on-surface uppercase tracking-wider">Tambah Guru Baru</h3>
+            </div>
+            <div className="p-md space-y-md bg-white">
+              <div className="space-y-xs">
+                <label className="text-xs font-bold text-on-surface-variant">NIP (Nomor Induk Pegawai)</label>
+                <input
+                  required
+                  placeholder="Contoh: 222"
+                  className="w-full border border-outline-variant rounded-lg p-2 text-xs outline-none focus:ring-2 focus:ring-primary font-semibold"
+                  type="text"
+                  value={teacherNip}
+                  onChange={(e) => setTeacherNip(e.target.value)}
+                />
+              </div>
+              <div className="space-y-xs">
+                <label className="text-xs font-bold text-on-surface-variant">Nama Lengkap & Gelar</label>
+                <input
+                  required
+                  placeholder="Contoh: Dr. Sarah Jenkins"
+                  className="w-full border border-outline-variant rounded-lg p-2 text-xs outline-none focus:ring-2 focus:ring-primary font-semibold"
+                  type="text"
+                  value={teacherName}
+                  onChange={(e) => setTeacherName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-xs">
+                <label className="text-xs font-bold text-on-surface-variant">Alamat Email</label>
+                <input
+                  required
+                  placeholder="Contoh: sarah@oakwood.sch.id"
+                  className="w-full border border-outline-variant rounded-lg p-2 text-xs outline-none focus:ring-2 focus:ring-primary font-semibold"
+                  type="email"
+                  value={teacherEmail}
+                  onChange={(e) => setTeacherEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-xs">
+                <label className="text-xs font-bold text-on-surface-variant">Jabatan / Bidang</label>
+                <input
+                  placeholder="Contoh: Bahasa Inggris"
+                  className="w-full border border-outline-variant rounded-lg p-2 text-xs outline-none focus:ring-2 focus:ring-primary font-semibold"
+                  type="text"
+                  value={teacherPosition}
+                  onChange={(e) => setTeacherPosition(e.target.value)}
+                />
+              </div>
+              <div className="space-y-xs">
+                <label className="text-xs font-bold text-on-surface-variant">Kata Sandi Awal</label>
+                <input
+                  required
+                  placeholder="Min. 6 karakter"
+                  className="w-full border border-outline-variant rounded-lg p-2 text-xs outline-none focus:ring-2 focus:ring-primary font-semibold"
+                  type="password"
+                  value={teacherPassword}
+                  onChange={(e) => setTeacherPassword(e.target.value)}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={registering}
+                className="w-full bg-primary hover:bg-primary-container text-on-primary text-[10px] font-bold py-2 rounded-lg transition-colors shadow-xs active:scale-95 disabled:opacity-75"
+              >
+                {registering ? "Mendaftarkan..." : "Daftarkan Guru"}
+              </button>
+            </div>
+          </form>
+
           {/* Support Info Card */}
+
           <div className="relative rounded-xl overflow-hidden bg-primary p-md text-on-primary shadow-xs">
             <div className="absolute top-0 right-0 opacity-10 pointer-events-none">
               <span className="material-symbols-outlined text-[80px]">support_agent</span>

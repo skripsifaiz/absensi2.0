@@ -10,7 +10,11 @@ interface RecentLog {
   statusClass: string;
 }
 
+import { api } from "@/utils/api";
+import { useRouter } from "next/navigation";
+
 export default function TeacherCheckIn() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [digitalTime, setDigitalTime] = useState("");
   const [dateString, setDateString] = useState("");
@@ -19,23 +23,21 @@ export default function TeacherCheckIn() {
   const [checkoutActive, setCheckoutActive] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
+  const [user, setUser] = useState<any>(null);
+  const [lat, setLat] = useState("-6.2088");
+  const [lng, setLng] = useState("106.8456");
+  const [radius, setRadius] = useState(150);
+  const [distance, setDistance] = useState("12"); // simulated distance inside radius
+  const [recentLogs, setRecentLogs] = useState<RecentLog[]>([]);
+  const [startTime, setStartTime] = useState("07:30");
+  const [endTime, setEndTime] = useState("15:30");
+
   const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
     setToast({ message, type });
     setTimeout(() => {
       setToast(null);
     }, 3000);
   };
-  
-  // Real Geolocation values simulation
-  const [lat] = useState("-6.2088");
-  const [lng] = useState("106.8456");
-  const [distance] = useState("12"); // 12 meters
-
-  const [recentLogs, setRecentLogs] = useState<RecentLog[]>([
-    { day: "Kemarin", timeText: "Check-out sukses pada 03:32 PM", status: "Normal", statusClass: "badge-success" },
-    { day: "Kemarin", timeText: "Check-in tercatat pada 08:28 AM", status: "Tepat Waktu", statusClass: "badge-success" },
-    { day: "Sen, 23 Okt", timeText: "Check-in pada 08:42 AM (toleransi grace 12m digunakan)", status: "Toleransi", statusClass: "badge-warning" },
-  ]);
 
   // Digital clock update
   useEffect(() => {
@@ -55,55 +57,119 @@ export default function TeacherCheckIn() {
     return () => clearInterval(interval);
   }, []);
 
-  // Simulated mount loader
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  const loadData = async (userId: string) => {
+    try {
+      // 1. Fetch settings config
+      const config = await api.get<any>("/settings");
+      setLat(String(config.latitude));
+      setLng(String(config.longitude));
+      setRadius(config.radius);
+      setStartTime(config.startTime);
+      setEndTime(config.endTime);
+
+      // Simulate a small distance variation within the radius limit (e.g. between 5 and 35 meters)
+      const mockDistance = Math.floor(Math.random() * 30) + 5;
+      setDistance(String(mockDistance));
+
+      // 2. Fetch today check-in status
+      const today = await api.get<any>(`/attendance/today?userId=${userId}`);
+      if (today) {
+        if (today.checkInTime) {
+          const checkInDate = new Date(today.checkInTime);
+          setCheckedInTime(checkInDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }));
+          setCheckInState("done");
+        }
+        if (today.checkOutTime) {
+          setCheckoutActive(false);
+        } else if (today.checkInTime) {
+          setCheckoutActive(true);
+        }
+      } else {
+        setCheckInState("ready");
+        setCheckoutActive(false);
+      }
+
+      // 3. Fetch recent history logs
+      const history = await api.get<any[]>(`/attendance/history?userId=${userId}`);
+      const logs = history.slice(0, 3).flatMap(item => {
+        const itemDate = new Date(item.date);
+        const dayText = itemDate.toDateString() === new Date().toDateString() 
+          ? "Hari Ini" 
+          : itemDate.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" });
+        const res: RecentLog[] = [];
+        if (item.checkOutTime) {
+          const outTimeStr = new Date(item.checkOutTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+          res.push({
+            day: dayText,
+            timeText: `Check-out sukses pada ${outTimeStr}`,
+            status: "Normal",
+            statusClass: "badge-neutral",
+          });
+        }
+        if (item.checkInTime) {
+          const inTimeStr = new Date(item.checkInTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+          res.push({
+            day: dayText,
+            timeText: `Check-in tercatat pada ${inTimeStr}`,
+            status: item.status === "HADIR" ? "Tepat Waktu" : item.status === "TERLAMBAT" ? "Terlambat" : item.status,
+            statusClass: item.status === "HADIR" ? "badge-success" : "badge-warning",
+          });
+        }
+        return res;
+      });
+      setRecentLogs(logs);
+
+    } catch (e) {
+      console.error("Failed to load check-in data", e);
+    } finally {
       setLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
+    }
+  };
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      setUser(u);
+      loadData(u.id);
+    } else {
+      router.push("/");
+    }
   }, []);
 
-  const handleCheckIn = () => {
-    if (checkInState !== "ready") return;
+  const handleCheckIn = async () => {
+    if (checkInState !== "ready" || !user) return;
     setCheckInState("loading");
 
-    setTimeout(() => {
-      const now = new Date();
-      const hours = String(now.getHours() % 12 || 12).padStart(2, "0");
-      const minutes = String(now.getMinutes()).padStart(2, "0");
-      const ampm = now.getHours() >= 12 ? "PM" : "AM";
-      const formattedTime = `${hours}:${minutes} ${ampm}`;
-
-      setCheckedInTime(formattedTime);
-      setCheckInState("done");
-      setCheckoutActive(true);
-
-      // Prepend to logs
-      setRecentLogs((prev) => [
-        { day: "Hari Ini", timeText: `Check-in tercatat pada ${formattedTime}`, status: "Tepat Waktu", statusClass: "badge-success" },
-        ...prev,
-      ]);
-    }, 1200);
+    try {
+      await api.post("/attendance/check-in", {
+        userId: user.id,
+        latitude: parseFloat(lat),
+        longitude: parseFloat(lng),
+      });
+      showToast("Check-In sukses!");
+      loadData(user.id);
+    } catch (err: any) {
+      showToast(err.message || "Gagal melakukan Check-In", "error");
+      setCheckInState("ready");
+    }
   };
 
-  const handleCheckOut = () => {
-    if (!checkoutActive) return;
-    const now = new Date();
-    const hours = String(now.getHours() % 12 || 12).padStart(2, "0");
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-    const ampm = now.getHours() >= 12 ? "PM" : "AM";
-    const formattedTime = `${hours}:${minutes} ${ampm}`;
-
-    setCheckoutActive(false);
-    setCheckInState("ready");
-    showToast(`Berhasil melakukan Check-Out pada ${formattedTime}. Selesai bertugas!`);
-
-    // Prepend to logs
-    setRecentLogs((prev) => [
-      { day: "Hari Ini", timeText: `Check-out sukses pada ${formattedTime}`, status: "Normal", statusClass: "badge-neutral" },
-      ...prev,
-    ]);
+  const handleCheckOut = async () => {
+    if (!checkoutActive || !user) return;
+    try {
+      await api.post("/attendance/check-out", {
+        userId: user.id,
+        latitude: parseFloat(lat),
+        longitude: parseFloat(lng),
+      });
+      showToast("Check-Out sukses! Selesai bertugas.");
+      loadData(user.id);
+    } catch (err: any) {
+      showToast(err.message || "Gagal melakukan Check-Out", "error");
+    }
   };
+
 
   if (loading) {
     return (

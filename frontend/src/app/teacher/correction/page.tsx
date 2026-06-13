@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/utils/api";
+
 
 export default function TeacherCorrection() {
   const router = useRouter();
@@ -26,6 +28,9 @@ export default function TeacherCorrection() {
   const [success, setSuccess] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
+  const [user, setUser] = useState<any>(null);
+  const [filteredWitnesses, setFilteredWitnesses] = useState<any[]>([]);
+
   const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
     setToast({ message, type });
     setTimeout(() => {
@@ -33,29 +38,25 @@ export default function TeacherCorrection() {
     }, 3000);
   };
 
-  // Witness list (Sarah Jenkins is active user from Header.tsx, so she is included here to demonstrate dynamic exclusion)
-  const witnesses = [
-    { id: "w-1", name: "Prof. Alan Grant (Matematika)" },
-    { id: "w-2", name: "David Miller (Sains & IPA)" },
-    { id: "w-3", name: "Elena Rodriguez (Seni Rupa)" },
-    { id: "w-4", name: "Julian Kwasi (Sejarah)" },
-    { id: "w-5", name: "Dr. Sarah Jenkins (Bahasa Inggris)" },
-  ];
-
-  // Active teacher user definition
-  const activeUser = "Dr. Sarah Jenkins";
-
-  // Filter witnesses: exclude the logged-in user
-  const filteredWitnesses = witnesses.filter(
-    (w) => !w.name.toLowerCase().includes(activeUser.toLowerCase())
-  );
-
-  // Simulated mount loader (600ms delay)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      setUser(u);
+      
+      // Load teachers list for witness selection
+      api.get<any[]>("/auth/teachers")
+        .then((teachers) => {
+          setFilteredWitnesses(teachers.filter((t) => t.id !== u.id));
+          setLoading(false);
+        })
+        .catch((e) => {
+          console.error("Failed to load teachers", e);
+          setLoading(false);
+        });
+    } else {
+      router.push("/");
+    }
   }, []);
 
   // Handle Photo selection and simulate upload
@@ -92,7 +93,7 @@ export default function TeacherCorrection() {
   };
 
   // Submit Handler
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (verificationMethod === "photo" && !photoPreview) {
       showToast("Harap pilih dan unggah foto bukti kehadiran terlebih dahulu!", "error");
@@ -104,15 +105,28 @@ export default function TeacherCorrection() {
     }
 
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await api.post("/correction", {
+        userId: user.id,
+        date,
+        correctionType,
+        reason,
+        verificationMethod,
+        witnessId: verificationMethod === "witness" ? selectedWitness : undefined,
+        photoUrl: verificationMethod === "photo" ? "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300" : undefined,
+      });
+
       setSuccess(true);
-      // Redirect to /teacher after 2 seconds
       setTimeout(() => {
         router.push("/teacher");
       }, 2000);
-    }, 1500);
+    } catch (err: any) {
+      showToast(err.message || "Gagal mengirimkan pengajuan koreksi.", "error");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
 
   // 1. Render Skeleton loading layout
   if (loading) {
@@ -383,10 +397,11 @@ export default function TeacherCorrection() {
             >
               <option value="">-- Pilih Rekan Guru --</option>
               {filteredWitnesses.map((w) => (
-                <option key={w.id} value={w.name}>
-                  {w.name}
+                <option key={w.id} value={w.id}>
+                  {w.name} ({w.position || "Guru"})
                 </option>
               ))}
+
             </select>
             <p className="text-[10px] text-on-surface-variant italic font-semibold">
               * Saksi terpilih akan menerima notifikasi untuk menyetujui klaim kehadiran Anda sebelum diteruskan ke Admin.

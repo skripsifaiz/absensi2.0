@@ -22,6 +22,7 @@ export default function Sidebar({ role, isOpen = false, onClose }: SidebarProps)
   }, [pathname]);
 
   const handleLogout = () => {
+    localStorage.removeItem("user");
     router.push("/");
   };
 

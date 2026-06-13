@@ -113,3 +113,19 @@ model AttendanceCorrection {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 }
+
+model SchoolConfig {
+  id             String   @id @default(uuid())
+  latitude       Float
+  longitude      Float
+  radius         Int      // dalam meter
+  startTime      String   // format "07:30"
+  endTime        String   // format "15:30"
+  lateThreshold  Int      // toleransi dalam menit
+  geofenceActive Boolean  @default(true)
+  schoolName     String
+  contactEmail   String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+

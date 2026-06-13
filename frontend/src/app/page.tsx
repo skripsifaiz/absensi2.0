@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+import { api } from "@/utils/api";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -12,32 +14,56 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
-    setTimeout(() => {
-      setIsLoading(false);
-      if (role === "admin") {
+    try {
+      const user = await api.post<any>("/auth/login", { nip: email, password });
+      localStorage.setItem("user", JSON.stringify(user));
+
+      if (user.role === "ADMIN") {
         router.push("/admin");
       } else {
         router.push("/teacher");
       }
-    }, 800);
+    } catch (err: any) {
+      setError(err.message || "NIP atau Kata Sandi salah.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleQuickLogin = (selectedRole: "admin" | "teacher") => {
+  const handleQuickLogin = async (selectedRole: "admin" | "teacher") => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    setError("");
+
+    try {
       if (selectedRole === "admin") {
+        const user = await api.post<any>("/auth/login", { nip: "111", password: "admin123" });
+        localStorage.setItem("user", JSON.stringify(user));
         router.push("/admin");
       } else {
+        // Fetch list of teachers
+        const teachers = await api.get<any[]>("/auth/teachers");
+        if (teachers.length === 0) {
+          throw new Error("Belum ada guru terdaftar di database. Silakan masuk sebagai Admin terlebih dahulu untuk mendaftarkan akun guru.");
+        }
+        
+        // Log in as the first teacher in the database
+        const firstTeacher = teachers[0];
+        const user = await api.post<any>("/auth/login", { nip: firstTeacher.nip, password: "teacher123" });
+        localStorage.setItem("user", JSON.stringify(user));
         router.push("/teacher");
       }
-    }, 400);
+    } catch (err: any) {
+      setError(err.message || "Gagal melakukan login cepat.");
+    } finally {
+      setIsLoading(false);
+    }
   };
+
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#f8fafc] relative overflow-hidden px-md py-xl">

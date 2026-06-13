@@ -11,12 +11,20 @@ interface HistoryRecord {
   details: string;
 }
 
+import { api } from "@/utils/api";
+import { useRouter } from "next/navigation";
+
 export default function TeacherHistory() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<"Semua" | "Hadir" | "Terlambat" | "Izin" | "Alpa">("Semua");
-  const [startDate, setStartDate] = useState("2023-10-18");
-  const [endDate, setEndDate] = useState("2023-10-24");
+  const [startDate, setStartDate] = useState("2026-06-01");
+  const [endDate, setEndDate] = useState("2026-06-30");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const [user, setUser] = useState<any>(null);
+  const [stats, setStats] = useState<any>({ rate: "100%", present: 0, late: 0, izin: 0, alpa: 0, total: 0 });
+  const [records, setRecords] = useState<HistoryRecord[]>([]);
 
   const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
     setToast({ message, type });
@@ -25,28 +33,88 @@ export default function TeacherHistory() {
     }, 3000);
   };
 
-  const [records] = useState<HistoryRecord[]>([
-    { date: "24 Okt 2023", status: "Hadir", checkIn: "08:15 AM", checkOut: "03:30 PM", hours: "7j 15m", details: "Check-in Tepat Waktu" },
-    { date: "23 Okt 2023", status: "Hadir", checkIn: "08:05 AM", checkOut: "04:30 PM", hours: "8j 25m", details: "Check-in Tepat Waktu" },
-    { date: "22 Okt 2023", status: "Hadir", checkIn: "08:12 AM", checkOut: "05:00 PM", hours: "8j 48m", details: "Check-in Tepat Waktu" },
-    { date: "21 Okt 2023", status: "Terlambat", checkIn: "08:45 AM", checkOut: "04:30 PM", hours: "7j 45m", details: "Terlambat 15 menit" },
-    { date: "20 Okt 2023", status: "Hadir", checkIn: "08:00 AM", checkOut: "04:30 PM", hours: "8j 30m", details: "Check-in Tepat Waktu" },
-    { date: "19 Okt 2023", status: "Izin", checkIn: "-- : --", checkOut: "-- : --", hours: "0j 0m", details: "Sakit (Surat Dokter Dilampirkan)" },
-    { date: "18 Okt 2023", status: "Alpa", checkIn: "08:10 AM", checkOut: "-- : --", hours: "--", details: "Lupa melakukan Check-out" },
-  ]);
+  const loadHistory = async (userId: string) => {
+    try {
+      // 1. Fetch stats
+      const s = await api.get<any>(`/attendance/stats?userId=${userId}`);
+      setStats(s);
 
-  // Simulated mount loader
-  useEffect(() => {
-    const timer = setTimeout(() => {
+      // 2. Fetch history
+      const history = await api.get<any[]>(`/attendance/history`, {
+        params: {
+          userId,
+          startDate,
+          endDate,
+          status: statusFilter,
+        },
+      });
+
+      const formatted = history.map(item => {
+        const d = new Date(item.date);
+        const dateStr = d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+        
+        let displayStatus: "Hadir" | "Terlambat" | "Izin" | "Alpa" = "Hadir";
+        if (item.status === "TERLAMBAT") displayStatus = "Terlambat";
+        else if (item.status === "IZIN") displayStatus = "Izin";
+        else if (item.status === "ALPA") displayStatus = "Alpa";
+
+        const checkInTimeStr = item.checkInTime 
+          ? new Date(item.checkInTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) 
+          : "-- : --";
+        const checkOutTimeStr = item.checkOutTime 
+          ? new Date(item.checkOutTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) 
+          : "-- : --";
+
+        let hoursStr = "0j 0m";
+        if (item.checkInTime && item.checkOutTime) {
+          const diffMs = new Date(item.checkOutTime).getTime() - new Date(item.checkInTime).getTime();
+          const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+          const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+          hoursStr = `${diffHrs}j ${diffMins}m`;
+        }
+
+        let details = "Check-in Tepat Waktu";
+        if (item.status === "TERLAMBAT") {
+          details = "Terlambat masuk shift";
+        } else if (item.status === "IZIN") {
+          details = "Izin Sakit / Keperluan";
+        } else if (item.status === "ALPA") {
+          details = "Tidak melakukan Check-in";
+        }
+
+        return {
+          date: dateStr,
+          status: displayStatus,
+          checkIn: checkInTimeStr,
+          checkOut: checkOutTimeStr,
+          hours: hoursStr,
+          details,
+        };
+      });
+
+      setRecords(formatted);
+    } catch (e) {
+      console.error("Failed to load history", e);
+    } finally {
       setLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
+    }
+  };
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      setUser(u);
+    } else {
+      router.push("/");
+    }
   }, []);
 
-  const filteredRecords = records.filter((rec) => {
-    if (statusFilter !== "Semua" && rec.status !== statusFilter) return false;
-    return true;
-  });
+  useEffect(() => {
+    if (user) {
+      loadHistory(user.id);
+    }
+  }, [user, startDate, endDate, statusFilter]);
 
   if (loading) {
     return (
@@ -62,6 +130,9 @@ export default function TeacherHistory() {
       </div>
     );
   }
+
+  // We skip record filtering inside render since we filter on the API level
+  const filteredRecords = records;
 
   return (
     <div className="flex flex-col gap-lg w-full">
@@ -84,28 +155,29 @@ export default function TeacherHistory() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-md">
         <div className="bg-white p-md rounded-xl border border-outline-variant shadow-xs">
           <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Tingkat Kehadiran</p>
-          <h3 className="text-2xl font-extrabold text-primary mt-1">94.3%</h3>
-          <p className="text-[9px] text-on-surface-variant font-bold mt-1">Kategori: Sangat Baik</p>
+          <h3 className="text-2xl font-extrabold text-primary mt-1">{stats.rate}</h3>
+          <p className="text-[9px] text-on-surface-variant font-bold mt-1">Total {stats.total} Hari Kerja</p>
         </div>
 
         <div className="bg-white p-md rounded-xl border border-outline-variant shadow-xs">
-          <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Rata Jam Check-In</p>
-          <h3 className="text-2xl font-extrabold text-on-surface mt-1">08:08 AM</h3>
+          <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Total Hadir</p>
+          <h3 className="text-2xl font-extrabold text-on-surface mt-1">{stats.present} Hari</h3>
           <p className="text-[9px] text-primary font-bold mt-1">Konsisten Tepat Waktu</p>
         </div>
 
         <div className="bg-white p-md rounded-xl border border-outline-variant shadow-xs">
-          <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Total Keterlambatan</p>
-          <h3 className="text-2xl font-extrabold text-amber-600 mt-1">1 Kali</h3>
-          <p className="text-[9px] text-on-surface-variant font-bold mt-1">Bulan berjalan</p>
+          <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Total Terlambat</p>
+          <h3 className="text-2xl font-extrabold text-amber-600 mt-1">{stats.late} Kali</h3>
+          <p className="text-[9px] text-on-surface-variant font-bold mt-1">Perlu Perbaikan</p>
         </div>
 
         <div className="bg-white p-md rounded-xl border border-outline-variant shadow-xs">
-          <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Jatah Sakit / Izin</p>
-          <h3 className="text-2xl font-extrabold text-on-surface mt-1">1.5 Hari</h3>
-          <p className="text-[9px] text-on-surface-variant font-bold mt-1">Semester berjalan</p>
+          <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Total Sakit / Alpa</p>
+          <h3 className="text-2xl font-extrabold text-rose-600 mt-1">{stats.izin} / {stats.alpa} Hari</h3>
+          <p className="text-[9px] text-on-surface-variant font-bold mt-1">Total izin & mangkir</p>
         </div>
       </div>
+
 
       {/* Filter Section */}
       <div className="bg-white rounded-xl border border-outline-variant p-md shadow-xs grid grid-cols-1 md:grid-cols-3 gap-md items-end">

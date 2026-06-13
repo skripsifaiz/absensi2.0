@@ -68,6 +68,9 @@ export const api = {
   
   put: <T>(endpoint: string, body?: any, options?: RequestOptions) => 
     apiFetch<T>(endpoint, { ...options, method: 'PUT', body }),
+
+  patch: <T>(endpoint: string, body?: any, options?: RequestOptions) => 
+    apiFetch<T>(endpoint, { ...options, method: 'PATCH', body }),
   
   delete: <T>(endpoint: string, options?: RequestOptions) => 
     apiFetch<T>(endpoint, { ...options, method: 'DELETE' }),
